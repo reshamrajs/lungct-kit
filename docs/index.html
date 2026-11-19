@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lungct-kit</title>
+  <meta name="description" content="Leakage-safe loaders, preprocessing and patient-grouped splits for public lung CT nodule datasets (LUNA16, LUNA25).">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫁</text></svg>">
+  <style>
+    :root { --bg:#f6f7f9; --surface:#fff; --text:#1b1d21; --muted:#5c6370; --border:#dfe2e7; --accent:#2563eb; --code:#0f172a; --code-text:#e2e8f0; --good:#12803a; --warn:#b54708; color-scheme: light; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#101216; --surface:#191c21; --text:#e8eaed; --muted:#9aa0a9; --border:#2c3038; --accent:#6b9dff; --code:#0b0e13; --code-text:#e2e8f0; --good:#56d37f; --warn:#f0a35e; color-scheme: dark; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+    a { color: var(--accent); }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 20px 0 32px; }
+    .topnav { display: flex; gap: 16px; font-size: .9rem; margin-bottom: 20px; }
+    .topnav a { text-decoration: none; font-weight: 600; }
+    h1 { font-size: 2.2rem; margin: 0; letter-spacing: -.02em; }
+    .lead { color: var(--muted); font-size: 1.1rem; margin: 8px 0 20px; max-width: 62ch; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+    .btn { display: inline-block; padding: 10px 18px; border-radius: 8px; font-weight: 600; text-decoration: none; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+    .btn.secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
+    h2 { font-size: 1.3rem; margin: 36px 0 10px; }
+    .code { position: relative; }
+    pre { background: var(--code); color: var(--code-text); padding: 16px; border-radius: 10px; overflow-x: auto; font-size: .88rem; line-height: 1.5; margin: 0; }
+    .copy { position: absolute; top: 8px; right: 8px; font: inherit; font-size: .8rem; padding: 4px 10px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .card h3 { margin: 0 0 4px; font-size: 1rem; }
+    .card p { margin: 0; color: var(--muted); font-size: .92rem; }
+    table { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: .93rem; }
+    th { color: var(--muted); font-weight: 600; font-size: .82rem; }
+    .yes { color: var(--good); font-weight: 600; }
+    .soon { color: var(--warn); font-weight: 600; }
+    .table-scroll { overflow-x: auto; }
+    footer { color: var(--muted); font-size: .88rem; padding: 40px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <nav class="topnav" aria-label="Site"><a href="https://reshamrajs.github.io/open-tools/">← All tools</a><a href="https://github.com/reshamrajs/lungct-kit">GitHub</a></nav>
+      <h1>lungct-kit</h1>
+      <p class="lead">Load public lung CT nodule datasets in one line, with correct coordinates, standard preprocessing, and train/test splits that never put the same patient on both sides.</p>
+      <div class="buttons">
+        <a class="btn" href="#install">Install</a>
+        <a class="btn secondary" href="#quickstart">Quick start</a>
+        <a class="btn secondary" href="https://github.com/reshamrajs/lungct-kit">View source</a>
+        <a class="btn secondary" href="https://github.com/reshamrajs/lungct-kit/issues">Report an issue</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h2 id="why">Why</h2>
+    <div class="grid">
+      <div class="card"><h3>No patient leakage</h3><p>LUNA25 labels are effectively patient-level. Row-level splits inflate AUC; <code>group_kfold</code> splits by patient.</p></div>
+      <div class="card"><h3>Correct coordinates</h3><p>World mm (x, y, z) to voxel [z, y, x], including direction cosines. Tested against SimpleITK.</p></div>
+      <div class="card"><h3>Standard preprocessing</h3><p>Isotropic resampling, lung window, and nodule patches that pad with air at scan edges.</p></div>
+      <div class="card"><h3>Works with PyTorch</h3><p>A plain map-style dataset: pass it straight to <code>DataLoader</code>. Core needs only NumPy and SciPy.</p></div>
+    </div>
+
+    <h2 id="install">Install</h2>
+    <div class="code"><pre><code>pip install "lungct-kit[io] @ git+https://github.com/reshamrajs/lungct-kit"</code></pre></div>
+
+    <h2 id="quickstart">Quick start</h2>
+    <div class="code"><pre><code>from lungct_kit import load, group_kfold, check_no_leakage
+
+ds = load("luna25",
+          annotations="LUNA25_Public_Training_Development_Data.csv",
+          images="luna25_images/",
+          patch_size=64, spacing=1.0)
+
+ds[0]["image"].shape      # (1, 64, 64, 64), float32 in [0, 1]
+
+for train_idx, test_idx in group_kfold(ds.groups, ds.labels, n_folds=5):
+    check_no_leakage(ds.groups, train_idx, test_idx)
+    train, test = ds.subset(train_idx), ds.subset(test_idx)</code></pre></div>
+
+    <h2 id="cli">Command line</h2>
+    <div class="code"><pre><code>lungct list
+lungct info luna25
+lungct check luna25 --annotations a.csv --images imgs/
+lungct split luna25 --annotations a.csv --folds 5 --out splits.json
+lungct export luna25 --annotations a.csv --images imgs/ --patch 64 --out patches.npz</code></pre></div>
+
+    <h2 id="datasets">Datasets</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Dataset</th><th>Loader</th><th>Size</th><th>Licence</th></tr></thead>
+        <tbody>
+          <tr><td><a href="https://luna16.grand-challenge.org">LUNA16</a></td><td class="yes">Ready</td><td>888 scans, 1,186 nodules</td><td>CC BY 4.0</td></tr>
+          <tr><td><a href="https://luna25.grand-challenge.org">LUNA25</a></td><td class="yes">Ready</td><td>2,120 patients, 6,163 annotations</td><td>CC BY 4.0</td></tr>
+          <tr><td><a href="https://www.cancerimagingarchive.net/collection/lidc-idri/">LIDC-IDRI</a></td><td class="soon">Planned</td><td>1,018 scans, 4-reader ratings</td><td>CC BY 3.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer class="wrap">MIT licensed. Please cite the original datasets: <code>lungct info &lt;dataset&gt;</code> prints the reference.</footer>
+
+  <script>
+    for (const box of document.querySelectorAll(".code")) {
+      const btn = Object.assign(document.createElement("button"), { className: "copy", type: "button", textContent: "Copy" });
+      btn.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(box.querySelector("code").innerText); btn.textContent = "Copied"; }
+        catch { btn.textContent = "Select and copy"; }
+        setTimeout(() => (btn.textContent = "Copy"), 1500);
+      });
+      box.append(btn);
+    }
+  </script>
+</body>
+</html>
